@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { isApiRequestAuthorized } from './policies.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,13 +11,36 @@ const __dirname = path.dirname(__filename);
 // 创建 Express 应用
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
+const HOST = process.env.WEB_HOST || '127.0.0.1';
+const WEB_API_TOKEN = process.env.WEB_API_TOKEN;
+const WEB_PUBLIC_DIR = path.join(__dirname, '../web/public');
+const WEB_SRC_DIR = path.join(__dirname, '../web/src');
 
-app.use(cors());
+app.use(cors({
+    origin: false
+}));
 app.use(express.json());
 
 // 静态文件服务
-app.use(express.static(path.join(__dirname, '../web/public')));
-app.use('/src', express.static(path.join(__dirname, '../web/src')));
+if (fs.existsSync(WEB_PUBLIC_DIR)) {
+    app.use(express.static(WEB_PUBLIC_DIR));
+}
+if (fs.existsSync(WEB_SRC_DIR)) {
+    app.use('/src', express.static(WEB_SRC_DIR));
+}
+if (!fs.existsSync(WEB_PUBLIC_DIR)) {
+    app.get('/', (req, res) => {
+        res.type('text/plain').send('Web console assets are not present in this build.');
+    });
+}
+
+app.use('/api', (req, res, next) => {
+    if (isApiRequestAuthorized(req.header('authorization'), WEB_API_TOKEN, req.ip)) {
+        next();
+        return;
+    }
+    res.status(401).json({ error: 'Unauthorized' });
+});
 
 // 全局状态
 let globalStats = {
@@ -58,8 +83,8 @@ export function addLog(level: string, message: string) {
 }
 
 export function startWebServer() {
-    app.listen(PORT, () => {
-        console.log(`[Web控制台] 已启动，访问 http://localhost:${PORT}`);
+    app.listen(PORT, HOST, () => {
+        console.log(`[Web控制台] 已启动，访问 http://${HOST}:${PORT}`);
         addLog('info', `Web控制台已启动，端口: ${PORT}`);
     });
 }

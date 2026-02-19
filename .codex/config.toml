@@ -7,8 +7,6 @@ args = ["-y", "@upstash/context7-mcp"]
 [mcp_servers.github]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
-[mcp_servers.github.env]
-GITHUB_PERSONAL_ACCESS_TOKEN = "YOUR_GITHUB_TOKEN_HERE"
 
 # Playwright: 浏览器自动化 (自带浏览器)
 [mcp_servers.playwright]

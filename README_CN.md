@@ -12,7 +12,7 @@
     - **GitHub**: 仓库管理
 - **会话持久化**: 跨重启保持对话上下文
 - **消息去重**: 可靠处理事件重试
-- **Web 管理后台**: 实时监控机器人运行状态、查看日志
+- **Web 管理后台（可选）**: 若提供 `web/` 静态资源可实时监控运行状态和日志
 - **内置命令**: 通过飞书直接管理机器人（/status, /help, /clear）
 
 ## 📋 前置要求
@@ -43,6 +43,7 @@
 
    编辑 `.env` 文件并填入您的凭证：
    - `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET`: 在飞书开发者后台获取
+   - `FEISHU_BOT_OPEN_ID`: 机器人 Open ID（用于群聊中准确识别是否 @ 到当前机器人）
    - `GITHUB_PERSONAL_ACCESS_TOKEN`: GitHub MCP 工具所需（可选）
 
 ## 💻 使用方法
@@ -55,9 +56,9 @@ npm run dev
 
 机器人启动后会自动：
 - 连接飞书 WebSocket 服务
-- 启动 Web 管理后台（默认端口 3000）
+- 启动 Web 服务（默认仅监听 `127.0.0.1:3000`）
 
-访问 `http://localhost:3000` 查看 Web 控制台。
+若仓库包含 `web/` 静态资源，可访问 `http://127.0.0.1:3000` 查看 Web 控制台。
 
 ### 生产模式
 编译 TypeScript 代码并运行编译后的 JavaScript：
@@ -68,23 +69,28 @@ npm start
 
 ## 🤖 机器人命令
 
-在飞书中发送以下命令（群聊需要 @ 机器人）：
+在飞书中发送以下命令（群聊需要明确 @ 当前机器人，依赖 `FEISHU_BOT_OPEN_ID`）：
 
 - `/status` - 查看机器人运行状态
 - `/help` - 显示帮助信息
 - `/clear` - 清除当前会话上下文，重新开始对话
 
-## 🖥️ Web 管理后台
+## 🖥️ Web 管理后台（可选）
 
-机器人启动后，访问 `http://localhost:3000` 可以查看：
+机器人启动后，若存在 `web/` 静态资源，访问 `http://127.0.0.1:3000` 可以查看：
 
 - 📊 实时统计数据（活跃会话数、处理消息数、运行时间）
 - 📝 实时日志流
 - 🟢 运行状态监控
 
-可通过环境变量 `WEB_PORT` 自定义端口：
+可通过环境变量 `WEB_HOST`/`WEB_PORT` 自定义监听地址和端口：
 ```bash
-WEB_PORT=8080 npm start
+WEB_HOST=127.0.0.1 WEB_PORT=8080 npm start
+```
+
+若设置 `WEB_API_TOKEN`，访问 `/api/*` 需携带请求头：
+```text
+Authorization: Bearer <WEB_API_TOKEN>
 ```
 
 ## 📁 项目结构
@@ -149,9 +155,9 @@ args = ["-y", "@modelcontextprotocol/server-playwright"]
 [mcp_servers.github]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
-[mcp_servers.github.env]
-GITHUB_PERSONAL_ACCESS_TOKEN = "YOUR_GITHUB_TOKEN_HERE"
 ```
+
+`GITHUB_PERSONAL_ACCESS_TOKEN` 建议通过系统环境变量或 `.env` 注入，不要在仓库配置中硬编码。
 
 ## 📖 文档
 

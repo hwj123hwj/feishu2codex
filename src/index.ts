@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { startWebServer, updateStats, addLog } from './server.js';
 import { getUptime } from './utils.js';
+import { isBotMentioned, parseLoggerLevel, sanitizeErrorForUser } from './policies.js';
 
 // 加载环境变量
 dotenv.config();
@@ -72,6 +73,8 @@ const threadMap = new Map<string, Thread>();
 // 消息去重：记录最近处理过的消息 ID (使用 Set，保留最近 1000 条)
 const processedMessages = new Set<string>();
 const MAX_PROCESSED_MESSAGES = 1000;
+const BOT_OPEN_ID = process.env.FEISHU_BOT_OPEN_ID;
+let hasLoggedMissingBotOpenId = false;
 
 // 辅助函数: 解析布尔值
 const getBool = (key: string, defaultVal: boolean) => {
@@ -91,6 +94,7 @@ async function getOrCreateThread(chatId: string): Promise<Thread> {
 
     // Codex 线程配置
     const threadOptions = {
+        model: process.env.CODEX_MODEL || undefined,
         skipGitRepoCheck: getBool('CODEX_SKIP_GIT_CHECK', true),
         sandboxMode: (process.env.CODEX_SANDBOX_MODE || 'workspace-write') as any,
         approvalPolicy: (process.env.CODEX_APPROVAL_POLICY || 'never') as any,
@@ -119,10 +123,17 @@ async function getOrCreateThread(chatId: string): Promise<Thread> {
 }
 
 // 3. 创建 WebSocket 客户端
+const loggerLevelMap = {
+    debug: lark.LoggerLevel.debug,
+    info: lark.LoggerLevel.info,
+    warn: lark.LoggerLevel.warn,
+    error: lark.LoggerLevel.error
+} as const;
+
 const wsClient = new lark.WSClient({
     appId: process.env.FEISHU_APP_ID,
     appSecret: process.env.FEISHU_APP_SECRET,
-    loggerLevel: lark.LoggerLevel.info
+    loggerLevel: loggerLevelMap[parseLoggerLevel(process.env.FEISHU_LOGGER_LEVEL)]
 });
 
 // 4. 启动监听
@@ -167,13 +178,18 @@ wsClient.start({
                         // 群聊场景：仅响应 @ 机器人的消息
                         // 私聊场景：chat_type 为 'p2p'，直接响应
                         if (chat_type === 'group') {
-                            // 检查 mentions 数组，如果没有 @ 任何人或者没有 @ 机器人，则忽略
-                            if (!mentions || mentions.length === 0) {
-                                console.log(`[忽略群聊消息] 未 @ 机器人`);
+                            if (!BOT_OPEN_ID && !hasLoggedMissingBotOpenId) {
+                                hasLoggedMissingBotOpenId = true;
+                                const warning = '未配置 FEISHU_BOT_OPEN_ID，群聊消息将被忽略以避免误回复';
+                                console.warn(`[配置警告] ${warning}`);
+                                addLog('warn', warning);
+                            }
+
+                            if (!isBotMentioned(mentions, BOT_OPEN_ID)) {
+                                console.log(`[忽略群聊消息] 未明确 @ 当前机器人`);
                                 return;
                             }
-                            // 注意：mentions 中包含了所有被 @ 的用户，机器人通常会出现在列表中
-                            // 飞书会自动识别机器人被 @，所以如果收到消息且 mentions 不为空，说明机器人被 @ 了
+
                             console.log(`[群聊] 检测到 @ 机器人，准备回复`);
                             addLog('info', '群聊中检测到 @机器人');
                         }
@@ -253,7 +269,7 @@ wsClient.start({
                     } catch (err) {
                         console.error('处理消息出错:', err);
                         addLog('error', `处理消息出错: ${err instanceof Error ? err.message : String(err)}`);
-                        await replyMessage(message_id, `发生错误: ${err instanceof Error ? err.message : String(err)}`);
+                        await replyMessage(message_id, sanitizeErrorForUser(err));
                     }
                 }
             }

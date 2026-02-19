@@ -39,6 +39,7 @@ A powerful bot integration that connects [Feishu/Lark](https://www.larksuite.com
    ```
    Edit `.env` and fill in your credentials:
    - `FEISHU_APP_ID` & `FEISHU_APP_SECRET`: Found in Feishu Developer Console.
+   - `FEISHU_BOT_OPEN_ID`: Bot Open ID used to safely verify `@bot` mentions in group chats.
    - `GITHUB_PERSONAL_ACCESS_TOKEN`: Required for GitHub MCP tools.
 
 ## Usage
