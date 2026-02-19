@@ -6,6 +6,7 @@ import * as path from 'path';
 import { startWebServer, updateStats, addLog } from './server.js';
 import { getUptime } from './utils.js';
 import { isBotMentioned, parseLoggerLevel, sanitizeErrorForUser } from './policies.js';
+import { ChatRunQueue } from './chatQueue.js';
 
 // 加载环境变量
 dotenv.config();
@@ -75,6 +76,7 @@ const processedMessages = new Set<string>();
 const MAX_PROCESSED_MESSAGES = 1000;
 const BOT_OPEN_ID = process.env.FEISHU_BOT_OPEN_ID;
 let hasLoggedMissingBotOpenId = false;
+const chatRunQueue = new ChatRunQueue();
 
 // 辅助函数: 解析布尔值
 const getBool = (key: string, defaultVal: boolean) => {
@@ -167,110 +169,112 @@ wsClient.start({
 
                 // 只处理文本消息
                 if (message_type === 'text') {
-                    try {
-                        const userText = JSON.parse(content).text;
-                        console.log(`[收到消息] ${userText}`);
-                        addLog('info', `收到消息: ${userText.substring(0, 50)}...`);
+                    await chatRunQueue.enqueue(chat_id, async () => {
+                        try {
+                            const userText = JSON.parse(content).text;
+                            console.log(`[收到消息] ${userText}`);
+                            addLog('info', `收到消息: ${userText.substring(0, 50)}...`);
 
-                        messageCount++;
-                        updateStats({ messages: messageCount });
+                            messageCount++;
+                            updateStats({ messages: messageCount });
 
-                        // 群聊场景：仅响应 @ 机器人的消息
-                        // 私聊场景：chat_type 为 'p2p'，直接响应
-                        if (chat_type === 'group') {
-                            if (!BOT_OPEN_ID && !hasLoggedMissingBotOpenId) {
-                                hasLoggedMissingBotOpenId = true;
-                                const warning = '未配置 FEISHU_BOT_OPEN_ID，群聊消息将被忽略以避免误回复';
-                                console.warn(`[配置警告] ${warning}`);
-                                addLog('warn', warning);
-                            }
-
-                            if (!isBotMentioned(mentions, BOT_OPEN_ID)) {
-                                console.log(`[忽略群聊消息] 未明确 @ 当前机器人`);
-                                return;
-                            }
-
-                            console.log(`[群聊] 检测到 @ 机器人，准备回复`);
-                            addLog('info', '群聊中检测到 @机器人');
-                        }
-
-                        // 处理内置命令
-                        if (userText.startsWith('/')) {
-                            const command = userText.trim().toLowerCase();
-                            if (command === '/status') {
-                                const statusMsg = `📊 机器人状态报告\n\n` +
-                                    `🟢 状态: 运行中\n` +
-                                    `💬 活跃会话: ${Object.keys(sessionMap).length}\n` +
-                                    `📨 处理消息: ${messageCount}\n` +
-                                    `⏱️ 运行时间: ${getUptime()}\n` +
-                                    `🔧 Codex SDK: 已连接\n` +
-                                    `📡 飞书WebSocket: 已连接`;
-                                await replyMessage(message_id, statusMsg);
-                                addLog('info', '执行 /status 命令');
-                                return;
-                            } else if (command === '/help') {
-                                const helpMsg = `🤖 机器人帮助\n\n` +
-                                    `可用命令:\n` +
-                                    `/status - 查看机器人运行状态\n` +
-                                    `/help - 显示此帮助信息\n` +
-                                    `/clear - 清除当前会话上下文\n\n` +
-                                    `💡 提示:\n` +
-                                    `- 群聊中需要 @ 机器人才会回复\n` +
-                                    `- 私聊直接发送消息即可\n` +
-                                    `- 机器人会记住对话历史`;
-                                await replyMessage(message_id, helpMsg);
-                                addLog('info', '执行 /help 命令');
-                                return;
-                            } else if (command === '/clear') {
-                                // 清除当前会话
-                                if (sessionMap[chat_id]) {
-                                    delete sessionMap[chat_id];
-                                    threadMap.delete(chat_id);
-                                    saveSessions();
-                                    await replyMessage(message_id, '✅ 已清除当前会话上下文，重新开始对话');
-                                    addLog('info', `清除会话: ${chat_id}`);
-                                    updateStats({ sessions: Object.keys(sessionMap).length });
-                                } else {
-                                    await replyMessage(message_id, 'ℹ️ 当前没有活跃会话');
+                            // 群聊场景：仅响应 @ 机器人的消息
+                            // 私聊场景：chat_type 为 'p2p'，直接响应
+                            if (chat_type === 'group') {
+                                if (!BOT_OPEN_ID && !hasLoggedMissingBotOpenId) {
+                                    hasLoggedMissingBotOpenId = true;
+                                    const warning = '未配置 FEISHU_BOT_OPEN_ID，群聊消息将被忽略以避免误回复';
+                                    console.warn(`[配置警告] ${warning}`);
+                                    addLog('warn', warning);
                                 }
-                                return;
+
+                                if (!isBotMentioned(mentions, BOT_OPEN_ID)) {
+                                    console.log(`[忽略群聊消息] 未明确 @ 当前机器人`);
+                                    return;
+                                }
+
+                                console.log(`[群聊] 检测到 @ 机器人，准备回复`);
+                                addLog('info', '群聊中检测到 @机器人');
                             }
+
+                            // 处理内置命令
+                            if (userText.startsWith('/')) {
+                                const command = userText.trim().toLowerCase();
+                                if (command === '/status') {
+                                    const statusMsg = `📊 机器人状态报告\n\n` +
+                                        `🟢 状态: 运行中\n` +
+                                        `💬 活跃会话: ${Object.keys(sessionMap).length}\n` +
+                                        `📨 处理消息: ${messageCount}\n` +
+                                        `⏱️ 运行时间: ${getUptime()}\n` +
+                                        `🔧 Codex SDK: 已连接\n` +
+                                        `📡 飞书WebSocket: 已连接`;
+                                    await replyMessage(message_id, statusMsg);
+                                    addLog('info', '执行 /status 命令');
+                                    return;
+                                } else if (command === '/help') {
+                                    const helpMsg = `🤖 机器人帮助\n\n` +
+                                        `可用命令:\n` +
+                                        `/status - 查看机器人运行状态\n` +
+                                        `/help - 显示此帮助信息\n` +
+                                        `/clear - 清除当前会话上下文\n\n` +
+                                        `💡 提示:\n` +
+                                        `- 群聊中需要 @ 机器人才会回复\n` +
+                                        `- 私聊直接发送消息即可\n` +
+                                        `- 机器人会记住对话历史`;
+                                    await replyMessage(message_id, helpMsg);
+                                    addLog('info', '执行 /help 命令');
+                                    return;
+                                } else if (command === '/clear') {
+                                    // 清除当前会话
+                                    if (sessionMap[chat_id]) {
+                                        delete sessionMap[chat_id];
+                                        threadMap.delete(chat_id);
+                                        saveSessions();
+                                        await replyMessage(message_id, '✅ 已清除当前会话上下文，重新开始对话');
+                                        addLog('info', `清除会话: ${chat_id}`);
+                                        updateStats({ sessions: Object.keys(sessionMap).length });
+                                    } else {
+                                        await replyMessage(message_id, 'ℹ️ 当前没有活跃会话');
+                                    }
+                                    return;
+                                }
+                            }
+
+                            // 1. 获取 Codex 线程
+                            // 注意: chat_id 在飞书中即代表“会话ID”。
+                            // - 私聊场景: chat_id 唯一对应你和机器人
+                            // - 群聊场景: chat_id 唯一对应那个群
+                            // 因此直接用 chat_id 即可完美兼容群聊，群里所有人共享同一个上下文。
+                            const thread = await getOrCreateThread(chat_id);
+
+                            // 2. 发送给 Codex
+                            console.log(`正在请求 Codex...`);
+
+                            // 调用 Codex SDK
+                            const result = await thread.run(userText);
+
+                            // 3. 持久化保存 (如果线程ID是新的)
+                            if (thread.id && sessionMap[chat_id] !== thread.id) {
+                                sessionMap[chat_id] = thread.id;
+                                saveSessions();
+                                console.log(`[系统] 会话 ${chat_id} 已绑定到线程 ${thread.id} 并保存`);
+                                addLog('info', `新会话绑定: ${chat_id}`);
+                                updateStats({ sessions: Object.keys(sessionMap).length });
+                            }
+
+                            // 提取回复文本
+                            const replyText = result.finalResponse || "Codex 没有返回内容";
+                            console.log(`[Codex 回复] ${replyText.substring(0, 50)}...`);
+
+                            // 4. 回复飞书
+                            await replyMessage(message_id, replyText);
+
+                        } catch (err) {
+                            console.error('处理消息出错:', err);
+                            addLog('error', `处理消息出错: ${err instanceof Error ? err.message : String(err)}`);
+                            await replyMessage(message_id, sanitizeErrorForUser(err));
                         }
-
-                        // 1. 获取 Codex 线程
-                        // 注意: chat_id 在飞书中即代表“会话ID”。
-                        // - 私聊场景: chat_id 唯一对应你和机器人
-                        // - 群聊场景: chat_id 唯一对应那个群
-                        // 因此直接用 chat_id 即可完美兼容群聊，群里所有人共享同一个上下文。
-                        const thread = await getOrCreateThread(chat_id);
-
-                        // 2. 发送给 Codex
-                        console.log(`正在请求 Codex...`);
-
-                        // 调用 Codex SDK
-                        const result = await thread.run(userText);
-
-                        // 3. 持久化保存 (如果线程ID是新的)
-                        if (thread.id && sessionMap[chat_id] !== thread.id) {
-                            sessionMap[chat_id] = thread.id;
-                            saveSessions();
-                            console.log(`[系统] 会话 ${chat_id} 已绑定到线程 ${thread.id} 并保存`);
-                            addLog('info', `新会话绑定: ${chat_id}`);
-                            updateStats({ sessions: Object.keys(sessionMap).length });
-                        }
-
-                        // 提取回复文本
-                        const replyText = result.finalResponse || "Codex 没有返回内容";
-                        console.log(`[Codex 回复] ${replyText.substring(0, 50)}...`);
-
-                        // 4. 回复飞书
-                        await replyMessage(message_id, replyText);
-
-                    } catch (err) {
-                        console.error('处理消息出错:', err);
-                        addLog('error', `处理消息出错: ${err instanceof Error ? err.message : String(err)}`);
-                        await replyMessage(message_id, sanitizeErrorForUser(err));
-                    }
+                    });
                 }
             }
         })

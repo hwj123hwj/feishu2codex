@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
-    "test:policies": "tsc --module NodeNext --target ES2022 --moduleResolution NodeNext --outDir dist-test src/policies.ts && node tests/run-policies-tests.mjs"
+    "test:policies": "tsc --module NodeNext --target ES2022 --moduleResolution NodeNext --outDir dist-test src/policies.ts && node tests/run-policies-tests.mjs",
+    "test:queue": "tsc --module NodeNext --target ES2022 --moduleResolution NodeNext --outDir dist-test src/chatQueue.ts && node tests/run-chat-queue-tests.mjs"
   },
   "keywords": [
     "codex",
