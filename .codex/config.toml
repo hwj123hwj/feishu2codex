@@ -3,10 +3,11 @@
 command = "npx"
 args = ["-y", "@upstash/context7-mcp"]
 
-# GitHub: 仓库管理 (请替换 Token)
+# GitHub: 使用 GitHub Copilot MCP HTTP 端点
 [mcp_servers.github]
-command = "npx"
-args = ["-y", "@modelcontextprotocol/server-github"]
+url = "https://api.githubcopilot.com/mcp"
+# 官方推荐：从环境变量读取 Bearer token
+bearer_token_env_var = "GITHUB_PERSONAL_ACCESS_TOKEN"
 
 # Playwright: 浏览器自动化 (自带浏览器)
 [mcp_servers.playwright]
