@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
     "test:policies": "tsc --module NodeNext --target ES2022 --moduleResolution NodeNext --outDir dist-test src/policies.ts && node tests/run-policies-tests.mjs",
-    "test:queue": "tsc --module NodeNext --target ES2022 --moduleResolution NodeNext --outDir dist-test src/chatQueue.ts && node tests/run-chat-queue-tests.mjs"
+    "test:queue": "tsc --module NodeNext --target ES2022 --moduleResolution NodeNext --outDir dist-test src/chatQueue.ts && node tests/run-chat-queue-tests.mjs",
+    "test:timeout": "tsc --module NodeNext --target ES2022 --moduleResolution NodeNext --outDir dist-test src/runTimeout.ts && node tests/run-timeout-tests.mjs"
   },
   "keywords": [
     "codex",
