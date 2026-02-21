@@ -28,5 +28,9 @@ bot_sessions.json
 # Tool configuration
 .claude/
 
+# Codex cache
+.npm-cache/
+codex-readme.tmp.txt
+
 # Web frontend
 web/
