@@ -79,6 +79,12 @@ jobs:
             ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
             cd "$APP_DIR/current"
 
+            if [ -f "$APP_DIR/shared/.env" ]; then
+              ln -sfn "$APP_DIR/shared/.env" "$APP_DIR/current/.env"
+            else
+              echo "Warning: $APP_DIR/shared/.env not found, deployment continues without .env symlink"
+            fi
+
             if [ -z "${{ secrets.DEPLOY_RESTART_CMD }}" ]; then
               echo "DEPLOY_RESTART_CMD secret is required"
               exit 1

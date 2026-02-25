@@ -30,3 +30,4 @@ Example restart command values:
 - Node.js 20+ installed
 - `SERVER_USER` has write permission for `DEPLOY_PATH`
 - If using `systemctl`, sudo permission should be configured for non-interactive execution
+- Optional but recommended: place env file at `DEPLOY_PATH/shared/.env` (workflow will symlink it to `current/.env`)
