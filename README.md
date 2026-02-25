@@ -66,6 +66,7 @@ npm start
 ## Documentation
 
 - [Agent Tools Guide](docs/AGENTS.md): Instructions for the AI agent on tool usage priority.
+- [GitHub Actions CI/CD](docs/github-actions-cicd.md): CI checks and automatic server deployment setup.
 
 ## License
 
